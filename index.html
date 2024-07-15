@@ -1,1 +1,14 @@
-<html><h1>hello world</h1></html>
+<html>
+  <script type="module">
+    import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+
+    d3.select('#view-area').append('h1').attr('text', 'testing 123');
+  </script>
+  <head>
+    <h1>Hello World!</h1>
+    <h2>A narrative visualization by Ryan David</h2>
+  </head>
+  <body>
+    <div id="view-area">
+  </body>
+</html>
