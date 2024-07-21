@@ -2,22 +2,281 @@
   <script type="module">
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
-    function loadInitial() {
+    const VIEW_HEIGHT = 800;
+    const VIEW_WIDTH = 1000;
+    const MARGIN_LEFT = 50;
+    const MARGIN_BOTTOM = 50;
+    
+    async function loadData() {
+      return d3.csv(
+        'https://raw.githubusercontent.com/invictus125/cs416-narrative-viz/trunk/US%20Suicide%20Death%20Rates.csv',
+        // Need to convert estimate and year columns to numbers for ease of use
+        (data) => {
+          data.YEAR = parseInt(data.YEAR);
+          data.ESTIMATE = parseFloat(data.ESTIMATE);
+          return data;
+        }
+      )
+    }
+
+    function getMinAndMaxValues(data) {
+      var values = data.map((row) => row.ESTIMATE);
+      var years = data.map((row) => row.YEAR);
+      return {
+        ESTIMATE: {
+          min: d3.min(values),
+          max: d3.max(values),
+        },
+        YEAR: {
+          min: d3.min(years),
+          max: d3.max(years),
+        }
+      }
+    }
+
+    // Creates and returns scales for graph by year
+    function getByYearGraphScales(data, width, height, overrides) {
+      var minMax = getMinAndMaxValues(data);
+      var minX = minMax.YEAR.min;
+      var minY = 0;
+      var maxX = minMax.YEAR.max;
+      var maxY = minMax.ESTIMATE.max;
+      if (!!overrides) {
+        if (!!overrides.x) {
+          if (overrides.x.min != undefined) {
+            minX = overrides.x.min;
+          }
+          if (overrides.x.max != undefined) {
+            maxX = overrides.x.max;
+          }
+        }
+        if (!!overrides.y) {
+          if (overrides.y.min != undefined) {
+            minY = overrides.y.min;
+          }
+          if (overrides.y.max != undefined) {
+            maxY = overrides.y.max;
+          }
+        }
+      }
+      return {
+        x: d3.scaleLinear().domain([minX, maxX]).range([0, width - MARGIN_LEFT]),
+        y: d3.scaleLinear().domain([minY, maxY]).range([height - MARGIN_BOTTOM, 0])
+      };
+    }
+
+    function renderLine(wrapper, data, scales, color, weight=3) {
+      var line_pts = [];
+      data.forEach((d, idx) => {
+        if (idx < data.length - 1) {
+          line_pts.push({
+            x1: scales.x(d.YEAR),
+            y1: scales.y(d.ESTIMATE),
+          });
+        }
+        if (idx > 0) {
+          line_pts[idx - 1].x2 = scales.x(d.YEAR);
+          line_pts[idx - 1].y2 = scales.y(d.ESTIMATE);
+        }
+      });
+      wrapper.selectAll('line').data(line_pts).enter().append('line')
+        .attr('x1', d => d.x1)
+        .attr('y1', d => d.y1)
+        .attr('x2', d => d.x2)
+        .attr('y2', d => d.y2)
+        // style="stroke:red;stroke-width:2"
+        .style('stroke-width', weight)
+        .style('stroke', color);
+    }
+
+    function applyFilters(data, filters) {
+      var outData = data.filter((row) => row != null);
+      filters.forEach((filter) => {
+        outData = outData.filter(filter);
+      });
+
+      return outData;
+    }
+
+    function renderLegend(colorMappings) {
+      // Todo
+    }
+
+    function renderByAgeView(svg, data) {
+      // Scales and axes
+      var scales = getByYearGraphScales(data, VIEW_WIDTH, VIEW_HEIGHT, { y: { max: 30 } });
+      var xAxis = d3.axisBottom().scale(scales.x).tickFormat((t) => t + '');
+      var yAxis = d3.axisLeft().scale(scales.y);
+      var xg = svg.append('g').attr('transform', `translate(${MARGIN_LEFT}, ${VIEW_HEIGHT - 50})`).call(xAxis);
+      var yg = svg.append('g').attr('transform', `translate(${MARGIN_LEFT}, 0)`).call(yAxis);
+
+      // axis labels
+      svg.append('text').text('Year')
+        .attr("class", "x-label")
+        .attr("text-anchor", "middle")
+        .attr("y", VIEW_HEIGHT - 10)
+        .attr("x", VIEW_WIDTH / 2)
+      svg.append('text').text('Rate of Suicide per 100,000 Population')
+        .attr("class", "y-label")
+        .attr("text-anchor", "middle")
+        .attr('transform', 'rotate(-90)')
+        .attr("y", 20)
+        .attr("x", -1 * (VIEW_HEIGHT / 2))
+
+      // Render total plot
+      var plotArea = svg.append('g')
+        .attr('transform', `translate(${MARGIN_LEFT}, 0)`);
+      var dataTotalRate = applyFilters(data, [
+        (row) => row.STUB_NAME == 'Total',
+        (row) => row.UNIT_NUM == '1'
+      ]);
+      renderLine(plotArea, dataTotalRate, scales, 'black');
+
+      // Render plots by age group
+      var ageData = applyFilters(data, [
+        (row) => row.STUB_NAME == 'Age',
+      ])
+      var grouped = {};
+      ageData.forEach((row) => {
+        if (grouped[row.AGE] == undefined) {
+          grouped[row.AGE] = []
+        }
+        grouped[row.AGE].push(row)
+      });
+      // var colorMappings = {
+      //   '10-14 years': 'blue',
+      //   '15-19 years': 'yellow',
+      //   '20-24 years': 'orange',
+      //   '25-34 years': 'purple',
+      //   '35-44 years': 'cyan',
+      //   '45-64 years': 'red',
+      //   // '55-64 years': 'gray',
+      //   '65-74 years': 'darkred',
+      //   '75-84 years': 'gray',
+      //   '85 years and over': 'black',
+      // };
+      var colorMappings = {
+        '10-14 years': 'green',
+        '15-24 years': 'yellow',
+        '25-44 years': 'orange',
+        '45-64 years': 'red',
+        '65 years and over': 'gray',
+      };
+      console.log(grouped);
+      Object.keys(grouped).forEach((group) => {
+        if (!colorMappings[group]) {
+          return;
+        }
+        var plotArea = svg.append('g')
+          .attr('transform', `translate(${MARGIN_LEFT}, 0)`);
+        renderLine(plotArea, grouped[group], scales, colorMappings[group]);
+      });
+    }
+
+    function renderHighRiskAgeView(svg, data) {
+      var filteredData = applyFilters(data, [
+        (row) => row.AGE == '45-64 years',
+        (row) => row.STUB_NAME == 'Sex and age'
+      ]);
+      // Scales and axes
+      var scales = getByYearGraphScales(filteredData, VIEW_WIDTH, VIEW_HEIGHT, { y: { max: 35 } });
+      var xAxis = d3.axisBottom().scale(scales.x).tickFormat((t) => t + '');
+      var yAxis = d3.axisLeft().scale(scales.y);
+      var xg = svg.append('g').attr('transform', `translate(${MARGIN_LEFT}, ${VIEW_HEIGHT - 50})`).call(xAxis);
+      var yg = svg.append('g').attr('transform', `translate(${MARGIN_LEFT}, 0)`).call(yAxis);
+
+      // axis labels
+      svg.append('text').text('Year')
+        .attr("class", "x-label")
+        .attr("text-anchor", "middle")
+        .attr("y", VIEW_HEIGHT - 10)
+        .attr("x", VIEW_WIDTH / 2)
+      svg.append('text').text('Rate of Suicide per 100,000 Population')
+        .attr("class", "y-label")
+        .attr("text-anchor", "middle")
+        .attr('transform', 'rotate(-90)')
+        .attr("y", 20)
+        .attr("x", -1 * (VIEW_HEIGHT / 2))
+
+      // Render total plot
+      var plotArea = svg.append('g')
+        .attr('transform', `translate(${MARGIN_LEFT}, 0)`);
+      var dataTotalRate = applyFilters(data, [
+        (row) => row.STUB_NAME == 'Total',
+        (row) => row.UNIT_NUM == '1'
+      ]);
+      renderLine(plotArea, dataTotalRate, scales, 'black', 3);
+
+      // Render plots by sex group in high-risk age group
+      var grouped = { 'male': [], 'female': [] };
+      filteredData.forEach((row) => {
+        if (row.STUB_LABEL.includes('Male')) {
+          grouped['male'].push(row);
+        } else {
+          grouped['female'].push(row);
+        }
+      });
+      console.log(grouped);
+      var colorMappings = {
+        'male': 'lightblue',
+        'female': 'pink',
+      }
+      Object.keys(grouped).forEach((group) => {
+        if (!colorMappings[group]) {
+          return;
+        }
+        var plotArea = svg.append('g')
+          .attr('transform', `translate(${MARGIN_LEFT}, 0)`);
+        renderLine(plotArea, grouped[group], scales, colorMappings[group], 3);
+      });
+
+      // Render plots for general rates by sex
+      var mfData = applyFilters(data, [
+        (row) => row.STUB_NAME == 'Sex',
+        (row) => row.UNIT_NUM == '2',
+      ])
+      var grouped = { 'male': [], 'female': [] };
+      mfData.forEach((row) => {
+        if (row.STUB_LABEL.includes('Male')) {
+          grouped['male'].push(row);
+        } else {
+          grouped['female'].push(row);
+        }
+      });
+      console.log(grouped);
+      var colorMappings = {
+        'male': 'darkblue',
+        'female': 'lightred',
+      }
+      Object.keys(grouped).forEach((group) => {
+        if (!colorMappings[group]) {
+          return;
+        }
+        var plotArea = svg.append('g')
+          .attr('transform', `translate(${MARGIN_LEFT}, 0)`);
+        renderLine(plotArea, grouped[group], scales, colorMappings[group], 3);
+      });
+    }
+
+    async function loadInitial() {
+      var data = (await loadData()).filter((row) => row.YEAR >= 1970);
       d3.select('div')
         .append('svg')
-        .attr('height', 200)
-        .attr('width', 200)
-        .append('circle')
-        .attr('r', 10)
-        .attr('cx', 100)
-        .attr('cy', 100);
+        .attr('height', VIEW_HEIGHT)
+        .attr('width', VIEW_WIDTH);
+        // .append('circle')
+        // .attr('r', 10)
+        // .attr('cx', 100)
+        // .attr('cy', 100);
+      renderHighRiskAgeView(d3.select('svg'), data);
     }
 
     window.onload = loadInitial;
   </script>
   <head>
-    <h1>Hello World!</h1>
-    <h2>A narrative visualization by Ryan David</h2>
+    <h1>At-risk US Demographics for Suicide</h1>
+    <h3>A narrative visualization by Ryan David</h3>
+    <h3>Created for CS416 at UIUC in 2024</h3>
   </head>
   <body>
     <div id="view-area" />
