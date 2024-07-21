@@ -1,4 +1,18 @@
 <html>
+  <style>
+    .tooltip {
+      position: relative;
+    }
+    .annotation-button {
+      fill: lightblue;
+    }
+    .annotation-button:hover {
+      fill: cyan;
+    }
+    .annotation-button-hilight {
+      fill: cyan;
+    }
+  </style>
   <script type="module">
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
@@ -6,6 +20,7 @@
     const VIEW_WIDTH = 1000;
     const MARGIN_LEFT = 50;
     const MARGIN_BOTTOM = 50;
+    const MARGIN_TOP = 20;
     
     async function loadData() {
       return d3.csv(
@@ -65,7 +80,7 @@
       };
     }
 
-    function renderLine(wrapper, data, scales, color, weight=3) {
+    function renderLine(wrapper, data, scales, color, weight=3, dashed=false) {
       var line_pts = [];
       data.forEach((d, idx) => {
         if (idx < data.length - 1) {
@@ -79,14 +94,17 @@
           line_pts[idx - 1].y2 = scales.y(d.ESTIMATE);
         }
       });
-      wrapper.selectAll('line').data(line_pts).enter().append('line')
-        .attr('x1', d => d.x1)
+      var newLine = wrapper.selectAll('line').data(line_pts).enter().append('line');
+      newLine.attr('x1', d => d.x1)
         .attr('y1', d => d.y1)
         .attr('x2', d => d.x2)
         .attr('y2', d => d.y2)
-        // style="stroke:red;stroke-width:2"
         .style('stroke-width', weight)
         .style('stroke', color);
+
+      if (dashed) {
+        newLine.attr('stroke-dasharray', '5,5')
+      }
     }
 
     function applyFilters(data, filters) {
@@ -98,17 +116,70 @@
       return outData;
     }
 
-    function renderLegend(colorMappings) {
-      // Todo
+    function renderLegend(lines) {
+      var container = d3.select('#plot-legend');
+      // container.append('text')
+      //     .text('Legend')
+      //     .attr('x', 5)
+      //     .attr('y', 20);
+      container.append('rect')
+        .attr('height', lines.length * 25)
+        .attr('width', 200)
+        .attr('fill', 'none')
+        .style('stroke', 'black')
+        .style('stroke-width', 1);
+      var ySpot = 15;
+      lines.forEach((line) => {
+        container.append('line')
+          .attr('x1', 5)
+          .attr('x2', 25)
+          .attr('y1', ySpot)
+          .attr('y2', ySpot)
+          .attr('stroke-width', 3)
+          .attr('stroke', line.color)
+          .attr('stroke-dasharray', line.dashed ? '5,5' : '')
+        container.append('text')
+          .text(line.name)
+          .attr('x', 35)
+          .attr('y', ySpot);
+        ySpot += 25
+      })
     }
 
-    function renderByAgeView(svg, data) {
+    function renderAnnotation(spec) {
+      // Spec should have the following parameters:
+      // id: the ID for the circle component
+      // x: x position
+      // y: y position
+      // radius: the radius for the circle. Defaults to 5
+      // bgcolor: a color identifier, defaults to lightblue
+      // onMouseover: a function to run on mouseover
+      // onMouseout: a function to run on mouse leaving
+      d3.select('svg#plot-svg')
+        .append('circle')
+          .attr('class', 'annotation-button')
+          .attr('id', spec.id)
+          .attr('r', spec.radius ? spec.radius : 5)
+          .attr('fill', spec.bgcolor ? spec.bgcolor : 'lightblue')
+          .attr('cx', spec.x)
+          .attr('cy', spec.y)
+          .on('mouseover', spec.onMouseover ? spec.onMouseover : () => null)
+          .on('mouseout', spec.onMouseout ? spec.onMouseout : () => null);
+    }
+
+    function renderByAgeView(data) {
+      var svg = d3.select('svg#plot-svg');
+
       // Scales and axes
       var scales = getByYearGraphScales(data, VIEW_WIDTH, VIEW_HEIGHT, { y: { max: 30 } });
       var xAxis = d3.axisBottom().scale(scales.x).tickFormat((t) => t + '');
       var yAxis = d3.axisLeft().scale(scales.y);
-      var xg = svg.append('g').attr('transform', `translate(${MARGIN_LEFT}, ${VIEW_HEIGHT - 50})`).call(xAxis);
-      var yg = svg.append('g').attr('transform', `translate(${MARGIN_LEFT}, 0)`).call(yAxis);
+      var xg = svg.append('g')
+        .attr('id', 'x-axis-container')
+        .attr('transform', `translate(${MARGIN_LEFT}, ${VIEW_HEIGHT - 50})`).call(xAxis);
+      var yg = svg.append('g')
+        .attr('id', 'y-axis-container')
+        .attr('transform', `translate(${MARGIN_LEFT}, 0)`).call(yAxis);
 
       // axis labels
       svg.append('text').text('Year')
@@ -130,7 +201,7 @@
         (row) => row.STUB_NAME == 'Total',
         (row) => row.UNIT_NUM == '1'
       ]);
-      renderLine(plotArea, dataTotalRate, scales, 'black');
+      renderLine(plotArea, dataTotalRate, scales, 'darkgray', undefined, true);
 
       // Render plots by age group
       var ageData = applyFilters(data, [
@@ -143,26 +214,13 @@
         }
         grouped[row.AGE].push(row)
       });
-      // var colorMappings = {
-      //   '10-14 years': 'blue',
-      //   '15-19 years': 'yellow',
-      //   '20-24 years': 'orange',
-      //   '25-34 years': 'purple',
-      //   '35-44 years': 'cyan',
-      //   '45-64 years': 'red',
-      //   // '55-64 years': 'gray',
-      //   '65-74 years': 'darkred',
-      //   '75-84 years': 'gray',
-      //   '85 years and over': 'black',
-      // };
       var colorMappings = {
-        '10-14 years': 'green',
-        '15-24 years': 'yellow',
+        '10-14 years': 'darkgreen',
+        '15-24 years': 'gold',
         '25-44 years': 'orange',
         '45-64 years': 'red',
-        '65 years and over': 'gray',
+        '65 years and over': 'darkred',
       };
-      console.log(grouped);
       Object.keys(grouped).forEach((group) => {
         if (!colorMappings[group]) {
           return;
@@ -171,19 +229,84 @@
           .attr('transform', `translate(${MARGIN_LEFT}, 0)`);
         renderLine(plotArea, grouped[group], scales, colorMappings[group]);
       });
+
+      renderLegend([
+        {
+          name: '10-14 years old',
+          dashed: false,
+          color: 'darkgreen',
+        },
+        {
+          name: '15-24 years old',
+          dashed: false,
+          color: 'gold',
+        },
+        {
+          name: '25-44 years old',
+          dashed: false,
+          color: 'orange',
+        },
+        {
+          name: '45-64 years old',
+          dashed: false,
+          color: 'red',
+        },
+        {
+          name: '65 and over',
+          dashed: false,
+          color: 'darkred',
+        },
+        {
+          name: 'General population',
+          dashed: true,
+          color: 'darkgray',
+        },
+      ]);
+
+      renderAnnotation({
+        id: 'old-highest-risk-group',
+        x: 375,
+        y: 190,
+        radius: 10,
+        onMouseover: () => console.log('moused'),
+        onMouseout: () => console.log('unmoused')
+      });
+
+      renderAnnotation({
+        id: 'lowest-risk-group',
+        x: 525,
+        y: 690,
+        radius: 10,
+        onMouseover: () => console.log('moused'),
+        onMouseout: () => console.log('unmoused')
+      });
+
+      renderAnnotation({
+        id: 'current-highest-risk-group',
+        x: 700,
+        y: 355,
+        radius: 10,
+        onMouseover: () => console.log('moused'),
+        onMouseout: () => console.log('unmoused')
+      });
     }
 
-    function renderHighRiskAgeView(svg, data) {
+    function renderHighRiskAgeView(data) {
+      var svg = d3.select('svg#plot-svg');
       var filteredData = applyFilters(data, [
         (row) => row.AGE == '45-64 years',
         (row) => row.STUB_NAME == 'Sex and age'
       ]);
       // Scales and axes
-      var scales = getByYearGraphScales(filteredData, VIEW_WIDTH, VIEW_HEIGHT, { y: { max: 35 } });
+      var scales = getByYearGraphScales(filteredData, VIEW_WIDTH, VIEW_HEIGHT, { y: { max: 40 } });
       var xAxis = d3.axisBottom().scale(scales.x).tickFormat((t) => t + '');
       var yAxis = d3.axisLeft().scale(scales.y);
-      var xg = svg.append('g').attr('transform', `translate(${MARGIN_LEFT}, ${VIEW_HEIGHT - 50})`).call(xAxis);
-      var yg = svg.append('g').attr('transform', `translate(${MARGIN_LEFT}, 0)`).call(yAxis);
+      var xg = svg.append('g')
+        .attr('id', 'x-axis-container')
+        .attr('transform', `translate(${MARGIN_LEFT}, ${VIEW_HEIGHT - 50})`).call(xAxis);
+      var yg = svg.append('g')
+        .attr('id', 'y-axis-container')
+        .attr('transform', `translate(${MARGIN_LEFT}, 0)`).call(yAxis);
 
       // axis labels
       svg.append('text').text('Year')
@@ -205,7 +328,7 @@
         (row) => row.STUB_NAME == 'Total',
         (row) => row.UNIT_NUM == '1'
       ]);
-      renderLine(plotArea, dataTotalRate, scales, 'black', 3);
+      renderLine(plotArea, dataTotalRate, scales, 'darkgray', 3, true);
 
       // Render plots by sex group in high-risk age group
       var grouped = { 'male': [], 'female': [] };
@@ -216,10 +339,9 @@
           grouped['female'].push(row);
         }
       });
-      console.log(grouped);
       var colorMappings = {
         'male': 'lightblue',
-        'female': 'pink',
+        'female': 'lightpink',
       }
       Object.keys(grouped).forEach((group) => {
         if (!colorMappings[group]) {
@@ -243,32 +365,58 @@
           grouped['female'].push(row);
         }
       });
-      console.log(grouped);
-      var colorMappings = {
-        'male': 'darkblue',
-        'female': 'lightred',
-      }
       Object.keys(grouped).forEach((group) => {
         if (!colorMappings[group]) {
           return;
         }
         var plotArea = svg.append('g')
           .attr('transform', `translate(${MARGIN_LEFT}, 0)`);
-        renderLine(plotArea, grouped[group], scales, colorMappings[group], 3);
+        renderLine(plotArea, grouped[group], scales, colorMappings[group], 3, true);
       });
+
+      renderLegend([
+        {
+          name: 'Male, 45-64 years old',
+          dashed: false,
+          color: 'lightblue',
+        },
+        {
+          name: 'Female, 45-64 years old',
+          dashed: false,
+          color: 'lightpink',
+        },
+        {
+          name: 'Male, all groups',
+          dashed: true,
+          color: 'lightblue',
+        },
+        {
+          name: 'Female, all groups',
+          dashed: true,
+          color: 'lightpink',
+        },
+        {
+          name: 'General population',
+          dashed: true,
+          color: 'darkgrey',
+        },
+      ]);
     }
 
     async function loadInitial() {
       var data = (await loadData()).filter((row) => row.YEAR >= 1970);
-      d3.select('div')
+      d3.select('div#view-area')
         .append('svg')
         .attr('height', VIEW_HEIGHT)
-        .attr('width', VIEW_WIDTH);
-        // .append('circle')
-        // .attr('r', 10)
-        // .attr('cx', 100)
-        // .attr('cy', 100);
-      renderHighRiskAgeView(d3.select('svg'), data);
+        .attr('width', VIEW_WIDTH)
+        .attr('id', 'plot-svg');
+
+      d3.select('svg#plot-svg')
+        .append('g')
+        .attr('id', 'plot-legend')
+        .attr('transform', `translate(${VIEW_WIDTH - 200}, ${MARGIN_TOP})`)
+      
+      renderByAgeView(data);
     }
 
     window.onload = loadInitial;
@@ -279,6 +427,7 @@
     <h3>Created for CS416 at UIUC in 2024</h3>
   </head>
   <body>
+    <br />
     <div id="view-area" />
   </body>
 </html>
