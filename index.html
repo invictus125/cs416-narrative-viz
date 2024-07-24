@@ -171,6 +171,7 @@
     }
 
     function renderTooltip(x, y, text) {
+      fadeTooltip();
       d3.select("div#view-area").append("div")
         .attr('id', 'tooltip')
         .attr("class", "tooltip")				
@@ -447,6 +448,8 @@
         .attr('transform', `translate(${VIEW_WIDTH - 200}, ${MARGIN_TOP})`)
       
       renderByAgeView(data);
+
+      renderTooltip(450, 400, 'Welcome! Mouse over the blue dots to learn more.');
     }
 
     window.onload = loadInitial;
