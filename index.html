@@ -7,13 +7,14 @@
       background-color: white;
     }
     .annotation-button {
-      fill: lightblue;
+      fill: white;
+      stroke: black;
+      stroke-width: 2;
     }
     .annotation-button:hover {
-      fill: cyan;
-    }
-    .annotation-button-hilight {
-      fill: cyan;
+      fill: white;
+      stroke: orange;
+      stroke-width: 5;
     }
   </style>
   <script type="module">
@@ -432,6 +433,45 @@
           color: 'darkgrey',
         },
       ]);
+
+      renderAnnotation({
+        id: 'highest-risk-group',
+        x: 800,
+        y: 190,
+        radius: 10,
+        onMouseover: (d) => renderTooltip(
+          d.pageX,
+          d.pageY,
+          'Men in the 45-64 year age bracket are overall the highest-risk for suicite in the United States today'
+        ),
+        onMouseout: () => fadeTooltip()
+      });
+
+      renderAnnotation({
+        id: 'lowest-risk-group',
+        x: 525,
+        y: 600,
+        radius: 10,
+        onMouseover: (d) => renderTooltip(
+          d.pageX,
+          d.pageY,
+          'While women are generally at lower risk, age is still a factor!'
+        ),
+        onMouseout: () => fadeTooltip()
+      });
+    }
+
+    function animateAnnotations() {
+      var onoff = true;
+
+      return setInterval(() => {
+        console.log(onoff);
+        onoff = !onoff
+        d3.selectAll('.annotation-button')
+          .transition()
+          .duration(1400)
+          .attr('r', () => onoff ? 10 : 15);
+      }, 1500);
     }
 
     async function loadInitial() {
@@ -447,9 +487,11 @@
         .attr('id', 'plot-legend')
         .attr('transform', `translate(${VIEW_WIDTH - 200}, ${MARGIN_TOP})`)
       
-      renderByAgeView(data);
+      // renderByAgeView(data);
+      renderHighRiskAgeView(data);
 
-      renderTooltip(450, 400, 'Welcome! Mouse over the blue dots to learn more.');
+      // Change radius of tooltips to encourage mouse over
+      animateAnnotations()
     }
 
     window.onload = loadInitial;
