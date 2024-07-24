@@ -1,7 +1,10 @@
 <html>
   <style>
     .tooltip {
-      position: relative;
+      position: absolute;
+      border-style: groove;
+      max-width: 200px;
+      background-color: white;
     }
     .annotation-button {
       fill: lightblue;
@@ -167,6 +170,21 @@
           .on('mouseout', spec.onMouseout ? spec.onMouseout : () => null);
     }
 
+    function renderTooltip(x, y, text) {
+      d3.select("div#view-area").append("div")
+        .attr('id', 'tooltip')
+        .attr("class", "tooltip")				
+        .style("opacity", 0);
+      var tooltip = d3.select('#tooltip');
+      tooltip.html(text).style("left", (x + 20) + "px").style("top", (y - 50) + "px");
+      tooltip.transition().duration(200).style("opacity", .9);
+    }
+
+    function fadeTooltip() {
+      var tooltip = d3.select('#tooltip');
+      tooltip.transition().duration(200).style("opacity", 0).remove();
+    }
+
     function renderByAgeView(data) {
       var svg = d3.select('svg#plot-svg');
 
@@ -268,8 +286,12 @@
         x: 375,
         y: 190,
         radius: 10,
-        onMouseover: () => console.log('moused'),
-        onMouseout: () => console.log('unmoused')
+        onMouseover: (d) => renderTooltip(
+          d.pageX,
+          d.pageY,
+          'In the mid-80s, people 65 and over had the \nhighest suicide rate by a large margin'
+        ),
+        onMouseout: () => fadeTooltip()
       });
 
       renderAnnotation({
@@ -277,8 +299,12 @@
         x: 525,
         y: 690,
         radius: 10,
-        onMouseover: () => console.log('moused'),
-        onMouseout: () => console.log('unmoused')
+        onMouseover: (d) => renderTooltip(
+          d.pageX,
+          d.pageY,
+          'Younger people have generally had very low rates of suicide relative to the general population'
+        ),
+        onMouseout: () => fadeTooltip()
       });
 
       renderAnnotation({
@@ -286,8 +312,12 @@
         x: 700,
         y: 355,
         radius: 10,
-        onMouseover: () => console.log('moused'),
-        onMouseout: () => console.log('unmoused')
+        onMouseover: (d) => renderTooltip(
+          d.pageX,
+          d.pageY,
+          'Around the early 2000s, the 45-64 year old age group overtook the 65 and over and became the highest-risk age group'
+        ),
+        onMouseout: () => fadeTooltip()
       });
     }
 
