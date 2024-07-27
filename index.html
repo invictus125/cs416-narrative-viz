@@ -21,8 +21,32 @@
       top: 1000;
       left: 50;
     }
+    #legend-svg {
+      position: fixed;
+      top: 1000;
+      right: 50;
+      width: 600;
+      height: 500;
+    }
     button {
       background-color: lightblue;
+    }
+
+    #filter-controls {
+      position: fixed;
+      top: 170;
+      left: 100;
+      width: fit-content;
+      height: 80;
+      border-color: gray;
+      border-width: 2;
+      border-style: solid;
+      padding-left: 10;
+      padding-right: 10;
+    }
+
+    #filter-controls>button {
+      margin-right: 50;
     }
   </style>
   <script type="module">
@@ -35,7 +59,20 @@
     const MARGIN_TOP = 20;
 
     var pageNum = 1;
+    var stubFilterOptions = [];
     var data;
+    /*
+     * Format:
+     * {
+     *    name: 'test',
+     *    data: [...],
+     *    dashed: false,
+     *    color: 'blue',
+     *    dots: false,
+     *    weight: 3,
+     * }
+     */
+    var plots = [];
     
     async function loadData() {
       return d3.csv(
@@ -95,7 +132,19 @@
       };
     }
 
-    function renderLine(wrapper, data, scales, color, weight=3, dashed=false) {
+    function renderPlots(wrapper, scales) {
+      d3.select('#legend-svg').selectAll('g').remove();
+      d3.select('#plot-svg').selectAll('g.data-plot').remove();
+      plots.forEach((plot) => {
+        var plotArea = wrapper.append('g')
+          .attr('class', 'data-plot')
+          .attr('transform', `translate(${MARGIN_LEFT}, 0)`);
+        renderLine(plotArea, plot.data, scales, plot.color, plot.weight ? plot.weight : 3, plot.dashed, plot.dots);
+      });
+      renderLegend(plots);
+    }
+
+    function renderLine(wrapper, data, scales, color, weight=3, dashed=false, dots=false) {
       var line_pts = [];
       data.forEach((d, idx) => {
         if (idx < data.length - 1) {
@@ -107,6 +156,8 @@
         if (idx > 0) {
           line_pts[idx - 1].x2 = scales.x(d.YEAR);
           line_pts[idx - 1].y2 = scales.y(d.ESTIMATE);
+          line_pts[idx - 1].year = d.YEAR;
+          line_pts[idx - 1].val = d.ESTIMATE;
         }
       });
       var newLine = wrapper.selectAll('line').data(line_pts).enter().append('line');
@@ -116,6 +167,22 @@
         .attr('y2', d => d.y2)
         .style('stroke-width', weight)
         .style('stroke', color);
+
+      if (dots) {
+        wrapper.selectAll('circle').data(line_pts).enter().append('circle')
+          .attr('r', 5)
+          .attr('fill', color)
+          .attr('cx', d => d.x2)
+          .attr('cy', d => d.y2)
+          .on('mouseover', (event, d) => {
+            renderTooltip(
+              event.pageX - 20,
+              event.pageY + 20,
+              `${d.year}: ${d.val}`,
+            );
+          })
+          .on('mouseout', (d) => fadeTooltip());
+      }
 
       if (dashed) {
         newLine.attr('stroke-dasharray', '5,5')
@@ -132,10 +199,10 @@
     }
 
     function renderLegend(lines) {
-      d3.select('svg#plot-svg')
+      d3.select('svg#legend-svg')
         .append('g')
-        .attr('id', 'plot-legend')
-        .attr('transform', `translate(${VIEW_WIDTH - 200}, ${MARGIN_TOP})`)
+        .attr('id', 'plot-legend');
+        //.attr('transform', `translate(${VIEW_WIDTH - 200}, ${MARGIN_TOP})`)
 
       var container = d3.select('#plot-legend');
       // container.append('text')
@@ -144,7 +211,7 @@
       //     .attr('y', 20);
       container.append('rect')
         .attr('height', lines.length * 25)
-        .attr('width', 200)
+        .attr('width', 400)
         .attr('fill', 'none')
         .style('stroke', 'black')
         .style('stroke-width', 1);
@@ -201,6 +268,27 @@
     function fadeTooltip() {
       var tooltip = d3.select('#tooltip');
       tooltip.transition().duration(200).style("opacity", 0).remove();
+    }
+
+    function renderFilterControls(options) {
+      d3.select('#filter-controls')
+        .append('select')
+        .attr('class', 'filter-select')
+        .attr('id', 'plot-select')
+        .selectAll('option').data(options).enter().append('option')
+          .attr('value', d => d)
+          .html(d => d);
+
+      d3.select('#filter-controls').append('br');
+      d3.select('#filter-controls').append('br');
+      
+      d3.select('#filter-controls')
+        .append('button')
+        .html('Plot')
+        .on('click', () => {
+          var val = d3.select("#plot-select").node().value;
+          renderAgeAndDemographicView(data, val);
+        });
     }
 
     function renderByAgeView(data) {
@@ -477,8 +565,9 @@
       });
     }
 
-    function renderAgeAndDemographicView(data) {
+    function renderAgeAndDemographicView(data, filterVal) {
       var svg = d3.select('svg#plot-svg');
+      
       var filteredData = applyFilters(data, [
         (row) => row.FLAG.length == 0,
         (row) => row.AGE == '45-64 years',
@@ -516,53 +605,83 @@
         (row) => row.STUB_NAME == 'Total',
         (row) => row.UNIT_NUM == '1'
       ]);
-      renderLine(plotArea, dataTotalRate, scales, 'darkgray', 3, true);
+      plots = [{
+        name: 'General population',
+        color: 'darkgray',
+        dashed: true,
+        dots: false,
+        data: dataTotalRate,
+      }];
 
-      // Group by sex, then age, then race
-      var grouped = {};
-      filteredData.forEach((row) => {
-        var keys = row.STUB_LABEL.split(': ');
-        
-        if (grouped[keys[0]] == undefined) {
-          grouped[keys[0]] = {};
-        }
-        if (grouped[keys[0]][keys[2]] == undefined) {
-          grouped[keys[0]][keys[2]] = {};
-        }
-        if (grouped[keys[0]][keys[2]][keys[1]] == undefined) {
-          grouped[keys[0]][keys[2]][keys[1]] = [];
-        }
-        grouped[keys[0]][keys[2]][keys[1]].push(row);
-      });
+      if (filterVal) {
+        // Render the highest-risk group (white male 45-64 years)
+        var highestRisk = applyFilters(data, [
+          (row) => row.FLAG.length == 0,
+          (row) => row.STUB_LABEL == 'Male: White: 45-64 years',
+        ]);
+        plots.push({
+          name: 'Male: White: 45-64 years',
+          color: 'red',
+          dashed: false,
+          dots: true,
+          data: highestRisk,
+        });
+
+        // Render the selected group for comparison
+        var userSelected = applyFilters(data, [
+          (row) => row.FLAG.length == 0,
+          (row) => row.STUB_LABEL == filterVal,
+        ]);
+        plots.push({
+          name: filterVal,
+          color: 'blue',
+          dashed: false,
+          dots: true,
+          data: userSelected,
+        });
+      } else {
+        // Group by sex, then age, then race
+        var grouped = {};
+        filteredData.forEach((row) => {
+          var keys = row.STUB_LABEL.split(': ');
+          
+          if (grouped[keys[0]] == undefined) {
+            grouped[keys[0]] = {};
+          }
+          if (grouped[keys[0]][keys[2]] == undefined) {
+            grouped[keys[0]][keys[2]] = {};
+          }
+          if (grouped[keys[0]][keys[2]][keys[1]] == undefined) {
+            grouped[keys[0]][keys[2]][keys[1]] = [];
+          }
+          grouped[keys[0]][keys[2]][keys[1]].push(row);
+        });
       
-
-      // Render plots based on groups
-      console.log(grouped);
-
-      Object.keys(grouped).forEach((sex) => {
-        Object.keys(grouped[sex]).forEach((age) => {
-          Object.keys(grouped[sex][age]).forEach((race) => {
-            renderLine(plotArea, grouped[sex][age][race], scales, 'blue', 3, false);
+        // Render plots based on groups
+        var colors = [
+          'red',
+          'green',
+          'darkorange',
+          'gold',
+        ];
+        var i = 0;
+        Object.keys(grouped).forEach((sex) => {
+          Object.keys(grouped[sex]).forEach((age) => {
+            Object.keys(grouped[sex][age]).forEach((race) => {
+              plots.push({
+                name: `${sex}, ${age}, ${race}`,
+                color: colors[i],
+                dashed: false,
+                dots: true,
+                data: grouped[sex][age][race],
+              });
+              i++;
+            });
           });
-        })
-      })
-      
-      // Object.keys(grouped).forEach((group) => {
-      //   if (!colorMappings[group]) {
-      //     return;
-      //   }
-      //   var plotArea = svg.append('g')
-      //     .attr('transform', `translate(${MARGIN_LEFT}, 0)`);
-      //   renderLine(plotArea, grouped[group], scales, colorMappings[group], 3, true);
-      // });
+        });
+      }
 
-      renderLegend([
-        {
-          name: 'General population',
-          dashed: true,
-          color: 'darkgray',
-        },
-      ]);
+      renderPlots(svg, scales);
     }
 
     function animateAnnotations() {
@@ -581,6 +700,7 @@
       switch (pageNum) {
         case 2:
           d3.select('#plot-svg').selectAll('g').remove();
+          d3.select('#legend-svg').selectAll('g').remove();
           d3.selectAll('.annotation-button').remove();
           renderByAgeView(data);
           pageNum -= 1;
@@ -588,6 +708,7 @@
           break;
         case 3:
           d3.select('#plot-svg').selectAll('g').remove();
+          d3.select('#legend-svg').selectAll('g').remove();
           d3.selectAll('.annotation-button').remove();
           renderHighRiskAgeView(data);
           pageNum -= 1;
@@ -602,6 +723,7 @@
       switch (pageNum) {
         case 1:
           d3.select('#plot-svg').selectAll('g').remove();
+          d3.select('#legend-svg').selectAll('g').remove();
           d3.selectAll('.annotation-button').remove();
           renderHighRiskAgeView(data);
           pageNum += 1;
@@ -609,10 +731,12 @@
           break;
         case 2:
           d3.select('#plot-svg').selectAll('g').remove();
+          d3.select('#legend-svg').selectAll('g').remove();
           d3.selectAll('.annotation-button').remove();
           renderAgeAndDemographicView(data)
           pageNum += 1;
           d3.select('#next-button').attr('disabled', true);
+          renderFilterControls(stubFilterOptions);
           break;
         default:
           break;
@@ -631,9 +755,21 @@
 
       d3.select('#prev-button').on('click', pageBack);
       d3.select('#next-button').on('click', pageForward);
-      
-      renderByAgeView(data);
-      //renderAgeAndDemographicView(data);
+
+      // Set filter options
+      var filteredData = applyFilters(data, [
+        (row) => row.UNIT_NUM == 2,
+        (row) => row.FLAG.length == 0,
+      ]);
+      var filterOptionMap = {}
+      filteredData.forEach((row) => {
+        filterOptionMap[row.STUB_LABEL] = true;
+      });
+      stubFilterOptions = Object.keys(filterOptionMap);
+
+      // Render initial slide
+      //renderByAgeView(data);
+      renderAgeAndDemographicView(data);renderFilterControls(stubFilterOptions);
 
       // Change radius of tooltips to encourage mouse over
       animateAnnotations()
@@ -649,9 +785,13 @@
   <body>
     <br />
     <div id="view-area" />
-    <div id="slide-controls">
-      <button id="prev-button">Previous Slide</button>
-      <button id="next-button">Next Slide</button>
+    <div>
+      <div id="slide-controls">
+        <button id="prev-button">Previous Slide</button>
+        <button id="next-button">Next Slide</button>
+      </div>
+      <div id="filter-controls">Select a plot to compare:<br /></div>
+      <div><svg id="legend-svg" /></div>
     </div>
   </body>
 </html>
