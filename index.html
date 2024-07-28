@@ -18,13 +18,13 @@
     }
     #slide-controls {
       position: fixed;
-      top: 1000;
+      top: 800;
       left: 50;
     }
     #legend-svg {
       position: fixed;
-      top: 1000;
-      left: 600;
+      top: 15%;
+      left: 810;
       width: 700;
       height: 500;
     }
@@ -52,8 +52,8 @@
   <script type="module">
     import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
-    const VIEW_HEIGHT = 800;
-    const VIEW_WIDTH = 1000;
+    const VIEW_HEIGHT = 600;
+    const VIEW_WIDTH = 800;
     const MARGIN_LEFT = 50;
     const MARGIN_BOTTOM = 50;
     const MARGIN_TOP = 20;
@@ -415,8 +415,8 @@
 
       renderAnnotation({
         id: 'old-highest-risk-group',
-        x: 375,
-        y: 190,
+        x: '38%',
+        y: '22%',
         radius: 10,
         onMouseover: (d) => renderTooltip(
           d.pageX,
@@ -428,8 +428,8 @@
 
       renderAnnotation({
         id: 'lowest-risk-group',
-        x: 525,
-        y: 690,
+        x: '50%',
+        y: '83%',
         radius: 10,
         onMouseover: (d) => renderTooltip(
           d.pageX,
@@ -441,8 +441,8 @@
 
       renderAnnotation({
         id: 'current-highest-risk-group',
-        x: 700,
-        y: 355,
+        x: '70%',
+        y: '42%',
         radius: 10,
         onMouseover: (d) => renderTooltip(
           d.pageX,
@@ -571,8 +571,8 @@
 
       renderAnnotation({
         id: 'highest-risk-group',
-        x: 800,
-        y: 190,
+        x: '80%',
+        y: '28%',
         radius: 10,
         onMouseover: (d) => renderTooltip(
           d.pageX,
@@ -584,8 +584,8 @@
 
       renderAnnotation({
         id: 'lowest-risk-group',
-        x: 525,
-        y: 600,
+        x: '60%',
+        y: '73%',
         radius: 10,
         onMouseover: (d) => renderTooltip(
           d.pageX,
@@ -663,7 +663,7 @@
         userSelected = userSelected.sort((a, b) => a.YEAR - b.YEAR);
         
         // Adjust yMax value based on selected plots
-        var maxVal = Math.max(...userSelected.map((row) => row.ESTIMATE)) + 10;
+        var maxVal = Math.max(...userSelected.map((row) => row.ESTIMATE)) + 15;
         if (maxVal > yMax) {
           yMax = maxVal;
         }
@@ -759,7 +759,7 @@
           .attr('fill', 'red')
           .attr('x', 200)
           .attr('y', anchorY)
-          .attr('font-size', 45);
+          .attr('font-size', 35);
 
       textGroup.append('text')
           .html('A narrative visualization by Ryan David')
@@ -767,7 +767,7 @@
           .attr('fill', 'red')
           .attr('x', 200)
           .attr('y', anchorY + 55)
-          .attr('font-size', 25);
+          .attr('font-size', 20);
       
       textGroup.append('text')
           .html('Created for CS416 in 2024')
@@ -775,7 +775,7 @@
           .attr('fill', 'red')
           .attr('x', 200)
           .attr('y', anchorY + 95)
-          .attr('font-size', 25);
+          .attr('font-size', 20);
 
       textGroup.append('text')
           .html('The goal of this presentation is to educate viewers on the suicide risk to various U.S.')
@@ -783,7 +783,7 @@
           .attr('fill', 'red')
           .attr('x', 200)
           .attr('y', anchorY + 175)
-          .attr('font-size', 20);
+          .attr('font-size', 17);
 
       textGroup.append('text')
           .html('demographics. We observe trends between 1970 and 2018 for individuals grouped by age,')
@@ -791,7 +791,7 @@
           .attr('fill', 'red')
           .attr('x', 200)
           .attr('y', anchorY + 200)
-          .attr('font-size', 20);
+          .attr('font-size', 17);
 
       textGroup.append('text')
           .html('sex, and reported race respectively.')
@@ -799,7 +799,7 @@
           .attr('fill', 'red')
           .attr('x', 200)
           .attr('y', anchorY + 225)
-          .attr('font-size', 20);
+          .attr('font-size', 17);
 
       textGroup.append('text')
           .html('By the last slide, readers will understand which groups are at the most risk historically,')
@@ -807,7 +807,7 @@
           .attr('fill', 'red')
           .attr('x', 200)
           .attr('y', anchorY + 275)
-          .attr('font-size', 20);
+          .attr('font-size', 17);
 
       textGroup.append('text')
           .html('and will be offered an opportunity to do their own comparisons between various groups.')
@@ -815,7 +815,7 @@
           .attr('fill', 'red')
           .attr('x', 200)
           .attr('y', anchorY + 300)
-          .attr('font-size', 20);
+          .attr('font-size', 17);
 
       textGroup.append('text')
           .html('Let\'s get started. Click "Next Slide" below to continue!')
@@ -823,7 +823,7 @@
           .attr('fill', 'red')
           .attr('x', 200)
           .attr('y', anchorY + 350)
-          .attr('font-size', 20);
+          .attr('font-size', 17);
 
       textGroup.transition().duration(15000).style('opacity', 100);
     }
