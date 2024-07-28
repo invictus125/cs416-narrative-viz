@@ -24,8 +24,8 @@
     #legend-svg {
       position: fixed;
       top: 1000;
-      right: 50;
-      width: 600;
+      left: 600;
+      width: 700;
       height: 500;
     }
     button {
@@ -58,7 +58,7 @@
     const MARGIN_BOTTOM = 50;
     const MARGIN_TOP = 20;
 
-    var pageNum = 1;
+    var pageNum = 0;
     var stubFilterOptions = [];
     var data;
     /*
@@ -271,8 +271,10 @@
     }
 
     function renderFilterControls(options) {
-      d3.select('#filter-controls')
-        .append('select')
+      var fc = d3.select('#filter-controls');
+      fc.style('display', null);
+      fc.append('br');
+      fc.append('select')
         .attr('class', 'filter-select')
         .attr('id', 'plot-select')
         .selectAll('option').data(options).enter().append('option')
@@ -291,7 +293,31 @@
         });
     }
 
+    function removeFilterControls() {
+      d3.select('#filter-controls')
+        .style('display', 'none')
+        .selectAll('*')
+        .remove()
+    }
+
+    function animateAnnotations() {
+      var onoff = true;
+
+      return setInterval(() => {
+        onoff = !onoff
+        d3.selectAll('.annotation-button')
+          .transition()
+          .duration(1400)
+          .attr('r', () => onoff ? 10 : 15);
+      }, 1500);
+    }
+
     function renderByAgeView(data) {
+      // Set user information
+      d3.select('#head-text').html('Trends by Age Group');
+      d3.select('#explanation-row-1').html('> Here we see suicide indicence over time grouped by age')
+      d3.select('#explanation-row-2').html('> Hover over the circles for some highlights')
+      
       var svg = d3.select('svg#plot-svg');
 
       // Scales and axes
@@ -428,6 +454,11 @@
     }
 
     function renderHighRiskAgeView(data) {
+      // Set user information
+      d3.select('#head-text').html('Trends by Age and Sex');
+      d3.select('#explanation-row-1').html('> In the previous slide, we saw that the 45-64 age group was highest risk overall')
+      d3.select('#explanation-row-2').html('> Now we look at how sex affects the trends')
+      
       var svg = d3.select('svg#plot-svg');
       var filteredData = applyFilters(data, [
         (row) => row.AGE == '45-64 years',
@@ -546,7 +577,7 @@
         onMouseover: (d) => renderTooltip(
           d.pageX,
           d.pageY,
-          'Men in the 45-64 year age bracket are overall the highest-risk for suicite in the United States today'
+          'Male persons in the 45-64 year age bracket are overall the highest-risk for suicide in the United States today'
         ),
         onMouseout: () => fadeTooltip()
       });
@@ -559,13 +590,18 @@
         onMouseover: (d) => renderTooltip(
           d.pageX,
           d.pageY,
-          'While women are generally at lower risk, age is still a factor!'
+          'While female persons are generally at lower risk, age is still a factor!'
         ),
         onMouseout: () => fadeTooltip()
       });
     }
 
     function renderAgeAndDemographicView(data, filterVal) {
+      // Set user information
+      d3.select('#head-text').html('Trends by Age, Sex, and Racial Group');
+      d3.select('#explanation-row-1').html('> We can be reasonably sure now that males in the 45-64 year age bracket are highest-risk these days')
+      d3.select('#explanation-row-2').html('> Grouping by racial group, we see that white males in particular are at risk. Feel free to compare some other groups using the filter tool below')
+
       var svg = d3.select('svg#plot-svg');
       
       var filteredData = applyFilters(data, [
@@ -574,29 +610,9 @@
         (row) => row.STUB_NAME == 'Sex, age and race',
         (row) => row.STUB_LABEL.includes('Male'),
       ]);
-      // Scales and axes
-      var scales = getByYearGraphScales(filteredData, VIEW_WIDTH, VIEW_HEIGHT, { y: { max: 40 } });
-      var xAxis = d3.axisBottom().scale(scales.x).tickFormat((t) => t + '');
-      var yAxis = d3.axisLeft().scale(scales.y);
-      var xg = svg.append('g')
-        .attr('id', 'x-axis-container')
-        .attr('transform', `translate(${MARGIN_LEFT}, ${VIEW_HEIGHT - 50})`).call(xAxis);
-      var yg = svg.append('g')
-        .attr('id', 'y-axis-container')
-        .attr('transform', `translate(${MARGIN_LEFT}, 0)`).call(yAxis);
 
-      // axis labels
-      svg.append('text').text('Year')
-        .attr("class", "x-label")
-        .attr("text-anchor", "middle")
-        .attr("y", VIEW_HEIGHT - 10)
-        .attr("x", VIEW_WIDTH / 2)
-      svg.append('text').text('Rate of Suicide per 100,000 Population')
-        .attr("class", "y-label")
-        .attr("text-anchor", "middle")
-        .attr('transform', 'rotate(-90)')
-        .attr("y", 20)
-        .attr("x", -1 * (VIEW_HEIGHT / 2))
+      // Track the maximum value across the plots to decide the view area
+      var yMax = 40;
 
       // Render total plot
       var plotArea = svg.append('g')
@@ -630,8 +646,27 @@
         // Render the selected group for comparison
         var userSelected = applyFilters(data, [
           (row) => row.FLAG.length == 0,
+          (row) => row.UNIT_NUM == 2,
           (row) => row.STUB_LABEL == filterVal,
-        ]);
+        ])
+
+        // Data is not always clean, de-duplicate to one value per year (taking the first)
+        var dataMap = {};
+        userSelected.forEach((row) => {
+          if (!dataMap[row.YEAR]) {
+            dataMap[row.YEAR] = row;
+          }
+        });
+        userSelected = Object.values(dataMap);
+
+        // Sort by year after deduplication
+        userSelected = userSelected.sort((a, b) => a.YEAR - b.YEAR);
+        
+        // Adjust yMax value based on selected plots
+        var maxVal = Math.max(...userSelected.map((row) => row.ESTIMATE)) + 10;
+        if (maxVal > yMax) {
+          yMax = maxVal;
+        }
         plots.push({
           name: filterVal,
           color: 'blue',
@@ -639,6 +674,7 @@
           dots: true,
           data: userSelected,
         });
+        console.log(userSelected);
       } else {
         // Group by sex, then age, then race
         var grouped = {};
@@ -681,19 +717,115 @@
         });
       }
 
+      // Scales and axes
+      var scales = getByYearGraphScales(filteredData, VIEW_WIDTH, VIEW_HEIGHT, { y: { max: yMax } });
+      var xAxis = d3.axisBottom().scale(scales.x).tickFormat((t) => t + '');
+      var yAxis = d3.axisLeft().scale(scales.y);
+      svg.select('g#x-axis-container').remove();
+      svg.select('g#y-axis-container').remove();
+      var xg = svg.append('g')
+        .attr('id', 'x-axis-container')
+        .attr('transform', `translate(${MARGIN_LEFT}, ${VIEW_HEIGHT - 50})`).call(xAxis);
+      var yg = svg.append('g')
+        .attr('id', 'y-axis-container')
+        .attr('transform', `translate(${MARGIN_LEFT}, 0)`).call(yAxis);
+
+      // axis labels
+      svg.append('text').text('Year')
+        .attr("class", "x-label")
+        .attr("text-anchor", "middle")
+        .attr("y", VIEW_HEIGHT - 10)
+        .attr("x", VIEW_WIDTH / 2)
+      svg.append('text').text('Rate of Suicide per 100,000 Population')
+        .attr("class", "y-label")
+        .attr("text-anchor", "middle")
+        .attr('transform', 'rotate(-90)')
+        .attr("y", 20)
+        .attr("x", -1 * (VIEW_HEIGHT / 2))
+
       renderPlots(svg, scales);
     }
 
-    function animateAnnotations() {
-      var onoff = true;
+    function renderTitleSlide() {
+      var anchorY = 150;
+      var svg = d3.select('svg#plot-svg');
 
-      return setInterval(() => {
-        onoff = !onoff
-        d3.selectAll('.annotation-button')
-          .transition()
-          .duration(1400)
-          .attr('r', () => onoff ? 10 : 15);
-      }, 1500);
+      var textGroup = svg.append('g')
+        .style('opacity', 0);
+
+      textGroup.append('text')
+          .html('At-risk U.S. Demographics for Suicide')
+          .attr('stroke', 'black')
+          .attr('fill', 'red')
+          .attr('x', 200)
+          .attr('y', anchorY)
+          .attr('font-size', 45);
+
+      textGroup.append('text')
+          .html('A narrative visualization by Ryan David')
+          .attr('stroke', 'black')
+          .attr('fill', 'red')
+          .attr('x', 200)
+          .attr('y', anchorY + 55)
+          .attr('font-size', 25);
+      
+      textGroup.append('text')
+          .html('Created for CS416 in 2024')
+          .attr('stroke', 'black')
+          .attr('fill', 'red')
+          .attr('x', 200)
+          .attr('y', anchorY + 95)
+          .attr('font-size', 25);
+
+      textGroup.append('text')
+          .html('The goal of this presentation is to educate viewers on the suicide risk to various U.S.')
+          .attr('stroke', 'black')
+          .attr('fill', 'red')
+          .attr('x', 200)
+          .attr('y', anchorY + 175)
+          .attr('font-size', 20);
+
+      textGroup.append('text')
+          .html('demographics. We observe trends between 1970 and 2018 for individuals grouped by age,')
+          .attr('stroke', 'black')
+          .attr('fill', 'red')
+          .attr('x', 200)
+          .attr('y', anchorY + 200)
+          .attr('font-size', 20);
+
+      textGroup.append('text')
+          .html('sex, and reported race respectively.')
+          .attr('stroke', 'black')
+          .attr('fill', 'red')
+          .attr('x', 200)
+          .attr('y', anchorY + 225)
+          .attr('font-size', 20);
+
+      textGroup.append('text')
+          .html('By the last slide, readers will understand which groups are at the most risk historically,')
+          .attr('stroke', 'black')
+          .attr('fill', 'red')
+          .attr('x', 200)
+          .attr('y', anchorY + 275)
+          .attr('font-size', 20);
+
+      textGroup.append('text')
+          .html('and will be offered an opportunity to do their own comparisons between various groups.')
+          .attr('stroke', 'black')
+          .attr('fill', 'red')
+          .attr('x', 200)
+          .attr('y', anchorY + 300)
+          .attr('font-size', 20);
+
+      textGroup.append('text')
+          .html('Let\'s get started. Click "Next Slide" below to continue!')
+          .attr('stroke', 'black')
+          .attr('fill', 'red')
+          .attr('x', 200)
+          .attr('y', anchorY + 350)
+          .attr('font-size', 20);
+
+      textGroup.transition().duration(15000).style('opacity', 100);
     }
 
     function pageBack() {
@@ -702,6 +834,7 @@
           d3.select('#plot-svg').selectAll('g').remove();
           d3.select('#legend-svg').selectAll('g').remove();
           d3.selectAll('.annotation-button').remove();
+          removeFilterControls()
           renderByAgeView(data);
           pageNum -= 1;
           d3.select('#prev-button').attr('disabled', true);
@@ -710,6 +843,7 @@
           d3.select('#plot-svg').selectAll('g').remove();
           d3.select('#legend-svg').selectAll('g').remove();
           d3.selectAll('.annotation-button').remove();
+          removeFilterControls()
           renderHighRiskAgeView(data);
           pageNum -= 1;
           d3.select('#next-button').attr('disabled', null);
@@ -721,6 +855,12 @@
 
     function pageForward() {
       switch (pageNum) {
+        case 0:
+          d3.select('#plot-svg').selectAll('g').remove();
+          renderByAgeView(data);
+          d3.select('#header-info').style('opacity', 100);
+          pageNum += 1;
+          break;
         case 1:
           d3.select('#plot-svg').selectAll('g').remove();
           d3.select('#legend-svg').selectAll('g').remove();
@@ -768,8 +908,7 @@
       stubFilterOptions = Object.keys(filterOptionMap);
 
       // Render initial slide
-      //renderByAgeView(data);
-      renderAgeAndDemographicView(data);renderFilterControls(stubFilterOptions);
+      renderTitleSlide();
 
       // Change radius of tooltips to encourage mouse over
       animateAnnotations()
@@ -778,9 +917,11 @@
     window.onload = loadInitial;
   </script>
   <head>
-    <h1>At-risk US Demographics for Suicide</h1>
-    <h3>A narrative visualization by Ryan David</h3>
-    <h3>Created for CS416 at UIUC in 2024</h3>
+    <div id="header-info" style="opacity:0">
+      <h1 id="head-text">At-risk US Demographics for Suicide</h1>
+      <h3 id="explanation-row-1">A narrative visualization by Ryan David</h3>
+      <h3 id="explanation-row-2">Created for CS416 at UIUC in 2024</h3>
+    </div>
   </head>
   <body>
     <br />
@@ -790,7 +931,7 @@
         <button id="prev-button">Previous Slide</button>
         <button id="next-button">Next Slide</button>
       </div>
-      <div id="filter-controls">Select a plot to compare:<br /></div>
+      <div id="filter-controls" style="display:none">Select a plot to compare:</div>
       <div><svg id="legend-svg" /></div>
     </div>
   </body>
